@@ -7,15 +7,26 @@ RUN go mod init main
 RUN go get
 RUN go build -o guide2go
 
-FROM debian:10-slim
-RUN useradd -ms /bin/bash guide2go
-COPY --from=builder --chown=guide2go /app/guide2go /usr/local/bin/guide2go
-COPY --chown=guide2go sample-config.yaml /config/sample-config.yaml
+FROM alpine:3.17.2
+ENV USER=docker
+ENV UID=12345
+ENV GID=23456
 
-RUN apt-get update && apt-get --no-install-recommends -y \
-install ca-certificates \
-&& apt autoclean \
-&& rm -rf /var/lib/apt/lists/*
+RUN addgroup "${USER}" -g "${GID}"
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "$(pwd)" \
+    --ingroup "$USER" \
+    --no-create-home \
+    --uid "$UID" \
+    "$USER"
 
-USER guide2go
-CMD [ "guide2go", "--config", "/config/config.yaml" ]
+RUN mkdir /app
+RUN chown ${USER} -R /app
+WORKDIR /app
+COPY --from=builder --chown="${USER}":"${GID}" /app/guide2go /usr/local/bin/guide2go
+COPY --chown="${USER}":"${GID}" sample-config.yaml /app/sample-config.yaml
+
+USER "${USER}"
+CMD [ "guide2go", "--config", "/app/config.yaml" ]
